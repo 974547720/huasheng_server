@@ -11,9 +11,10 @@ services:
       MYSQL_USER: developer                # 普通用户
       MYSQL_PASSWORD: abcd1234       # 普通用户密码
     ports:
-      - "3306:3306"  # 本地端口:容器端口
+      - "3307:3306"  # 本地端口:容器端口
     volumes:
       - mysql_data:/var/lib/mysql  # 数据持久化
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
