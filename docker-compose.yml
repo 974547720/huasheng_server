@@ -19,6 +19,65 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --default-authentication-plugin=mysql_native_password
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot3306"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-local
+    restart: unless-stopped
+    ports:
+      - "6379:6379"  # 本地端口:容器端口
+    volumes:
+      - redis_data:/data  # 数据持久化
+    command: redis-server --appendonly yes  # 启用 AOF 持久化
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: huasheng-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"  # 本地端口:容器端口
+    volumes:
+      - .:/app  # 挂载代码目录，实现热重载
+      - /app/node_modules  # 排除 node_modules，使用容器内的依赖
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${DB_USER:-developer}
+      - DB_PASSWORD=${DB_PASSWORD:-abcd1234}
+      - DB_NAME=${DB_NAME:-mydatabase}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    command: npm run dev  # 开发模式，使用 nodemon 热重载
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   mysql_data:
+  redis_data:
