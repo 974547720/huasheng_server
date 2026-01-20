@@ -32,7 +32,7 @@ services:
     container_name: redis-local
     restart: unless-stopped
     ports:
-      - "6379:6379"  # 本地端口:容器端口
+      - "6378:6379"  # 本地端口:容器端口
     volumes:
       - redis_data:/data  # 数据持久化
     command: redis-server --appendonly yes  # 启用 AOF 持久化
@@ -62,7 +62,7 @@ services:
       - DB_PORT=3306
       - DB_USER=${DB_USER:-developer}
       - DB_PASSWORD=${DB_PASSWORD:-abcd1234}
-      - DB_NAME=${DB_NAME:-mydatabase}
+      - DB_NAME=${DB_NAME:-peanut_parser}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
