@@ -1,7 +1,7 @@
 -- 创建花生用户管理与解析服务平台数据库
-CREATE DATABASE IF NOT EXISTS peanut_parser CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS mydatabase CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-USE peanut_parser;
+USE mydatabase;
 
 -- 1. 用户信息表
 CREATE TABLE IF NOT EXISTS users (
@@ -133,3 +133,36 @@ SELECT
 FROM parse_tasks
 GROUP BY DATE(created_at)
 ORDER BY parse_date DESC;
+
+-- 插入示例用户数据
+INSERT INTO users (email, phone, password_hash, balance, experience_quota_used) VALUES
+('zhangsan@example.com', '13800138001', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 50, TRUE),
+('lisi@example.com', '13800138002', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 25, TRUE),
+('wangwu@example.com', '13800138003', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 100, FALSE),
+('zhaoliu@example.com', NULL, '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 0, FALSE);
+
+-- 插入示例激活码数据
+INSERT INTO activation_codes (code, value, is_used, used_by_user_id, used_at, created_at, expired_at) VALUES
+('ABC1234567890DEFGHIJKLMN012345', 10, FALSE, NULL, NULL, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY)),
+('XYZ9876543210ZYXWVUTSRQPONMLKJI', 20, TRUE, 1, DATE_ADD(NOW(), INTERVAL -1 DAY), DATE_ADD(NOW(), INTERVAL -2 DAY), DATE_ADD(NOW(), INTERVAL 28 DAY)),
+('DEF4567891234GHIJKLMN0123456789', 50, FALSE, NULL, NULL, NOW(), DATE_ADD(NOW(), INTERVAL 60 DAY)),
+('GHI7891234567JKLMNOPQRSTUVWXY', 5, FALSE, NULL, NULL, NOW(), DATE_ADD(NOW(), INTERVAL 15 DAY));
+
+-- 插入示例解析任务数据
+INSERT INTO parse_tasks (user_id, platform_type, parse_type, input_url, status, result_count, deducted_times, reason, created_at, finished_at) VALUES
+(1, '普通平台', '单帖提取', 'https://example.com/video/123', '成功', 1, 1, NULL, DATE_ADD(NOW(), INTERVAL -3 HOUR), DATE_ADD(NOW(), INTERVAL -3 HOUR)),
+(1, '高消耗平台', '主页/批量提取', 'https://instagram.com/user/profile', '成功', 7, 3, NULL, DATE_ADD(NOW(), INTERVAL -2 HOUR), DATE_ADD(NOW(), INTERVAL -2 HOUR)),
+(2, '动态计费平台', '主页/批量提取', 'https://youtube.com/channel/abc123', '失败', 0, 0, '网络连接超时', DATE_ADD(NOW(), INTERVAL -1 HOUR), DATE_ADD(NOW(), INTERVAL -1 HOUR)),
+(3, '普通平台', '单帖提取', 'https://example.com/image/456', '成功', 1, 1, NULL, DATE_ADD(NOW(), INTERVAL -30 MINUTE), DATE_ADD(NOW(), INTERVAL -30 MINUTE));
+
+-- 插入示例余额变动日志数据
+INSERT INTO balance_logs (user_id, change_amount, before_balance, after_balance, action_type, related_task_id, remark, created_at) VALUES
+(1, -1, 50, 49, '解析消费', 1, '普通平台单帖提取', DATE_ADD(NOW(), INTERVAL -3 HOUR)),
+(1, -3, 49, 46, '解析消费', 2, 'Instagram批量提取(7个帖子)', DATE_ADD(NOW(), INTERVAL -2 HOUR)),
+(3, -1, 100, 99, '解析消费', 4, '普通平台单帖提取', DATE_ADD(NOW(), INTERVAL -30 MINUTE)),
+(1, 20, 46, 66, '充值', NULL, '激活码: XYZ9876543210ZYXWVUTSRQPONMLKJI', DATE_ADD(NOW(), INTERVAL -1 DAY));
+
+-- 插入更多管理员数据
+INSERT INTO admins (username, password_hash, role, last_login_at) VALUES
+('auditor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '普通管理员', DATE_ADD(NOW(), INTERVAL -1 HOUR)),
+('developer', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '超级管理员', DATE_ADD(NOW(), INTERVAL -2 HOUR));

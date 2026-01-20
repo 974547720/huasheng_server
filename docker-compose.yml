@@ -62,7 +62,7 @@ services:
       - DB_PORT=3306
       - DB_USER=${DB_USER:-developer}
       - DB_PASSWORD=${DB_PASSWORD:-abcd1234}
-      - DB_NAME=${DB_NAME:-peanut_parser}
+      - DB_NAME=${DB_NAME:-mydatabase}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     depends_on:
