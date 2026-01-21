@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/users', userRoutes);
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 // Root route
 app.get('/', (req, res) => {
