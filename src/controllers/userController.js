@@ -1,9 +1,31 @@
 const User = require('../models/userModel');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const sendVerificationCodeAction = require('../actions/auth/SendVerificationCodeAction');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+};
+
+exports.sendVCode = async (req, res) => {
+  const { email } = req.body || {};
+
+  if (!email) {
+    return res.status(400).json({ success: false, message: '请提供邮箱地址' });
+  }
+
+  // 简单的邮箱格式验证
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ success: false, message: '无效的邮箱格式' });
+  }
+
+  try {
+    const result = await sendVerificationCodeAction.execute(email);
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
 };
 
 exports.register = async (req, res) => {
