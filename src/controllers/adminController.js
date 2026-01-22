@@ -112,3 +112,74 @@ exports.getBalanceLogs = async (req, res) => {
     }
 };
 
+/**
+ * 人工调整用户余额
+ */
+exports.adjustUserBalance = async (req, res) => {
+    const { userId, adminId, type, amount, remark } = req.body;
+
+    // 1. 参数校验
+    if (!userId || !adminId || !type || !amount || !remark) {
+        return res.status(400).json({ success: false, message: '参数缺失（需提供用户ID、管理员ID、类型、数量、备注）' });
+    }
+
+    if (amount <= 0) {
+        return res.status(400).json({ success: false, message: '调整数量必须大于 0' });
+    }
+
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
+
+    try {
+        // 2. 锁行查询用户当前余额
+        const [users] = await connection.execute('SELECT balance FROM users WHERE id = ? FOR UPDATE', [userId]);
+        if (!users[0]) throw new Error('用户不存在');
+
+        const beforeBalance = users[0].balance;
+        let changeAmount = Number(amount);
+        
+        // 根据类型确定加减
+        if (type === '扣除') {
+            changeAmount = -changeAmount;
+            if (beforeBalance + changeAmount < 0) {
+                throw new Error('扣除失败：用户余额不足以完成此操作');
+            }
+        } else if (type !== '增加') {
+            throw new Error('无效的调整类型，仅支持 "增加" 或 "扣除"');
+        }
+
+        const afterBalance = beforeBalance + changeAmount;
+
+        // 3. 更新用户余额
+        await connection.execute(
+            'UPDATE users SET balance = ? WHERE id = ?',
+            [afterBalance, userId]
+        );
+
+        // 4. 记录流水日志
+        await connection.execute(
+            'INSERT INTO balance_logs (user_id, admin_id, change_amount, before_balance, after_balance, action_type, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [userId, adminId, changeAmount, beforeBalance, afterBalance, 'admin_adjustment', remark]
+        );
+
+        await connection.commit();
+
+        res.json({
+            success: true,
+            message: '余额调整成功',
+            data: {
+                userId,
+                beforeBalance,
+                afterBalance,
+                changeAmount
+            }
+        });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Adjust Balance Error:', error);
+        res.status(400).json({ success: false, message: error.message });
+    } finally {
+        connection.release();
+    }
+};
+

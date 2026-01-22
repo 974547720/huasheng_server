@@ -18,4 +18,10 @@ router.get('/parse-tasks', adminController.getParseTasks);
 // 获取余额流水记录
 router.get('/balance-logs', adminController.getBalanceLogs);
 
+/**
+ * 用户管理
+ */
+// 人工调整余额
+router.post('/users/adjust-balance', adminController.adjustUserBalance);
+
 module.exports = router;
