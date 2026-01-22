@@ -1,16 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const activationCodeController = require('../controllers/activationCodeController');
+const adminController = require('../controllers/adminController');
 
 /**
- * 激活码管理路由
- * 路径前缀: /api/admin
+ * 激活码管理
  */
-
-// 生成激活码 (POST /api/admin/activation-codes/generate)
 router.post('/activation-codes/generate', activationCodeController.generateCodes);
-
-// 获取激活码列表 (GET /api/admin/activation-codes)
 router.get('/activation-codes', activationCodeController.getAllCodes);
+
+/**
+ * 审计与记录
+ */
+// 获取解析任务记录
+router.get('/parse-tasks', adminController.getParseTasks);
+
+// 获取余额流水记录
+router.get('/balance-logs', adminController.getBalanceLogs);
 
 module.exports = router;

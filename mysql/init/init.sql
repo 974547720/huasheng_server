@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS balance_logs (
     after_balance INT NOT NULL COMMENT '变动后余额',
     action_type ENUM('recharge', 'consume', 'admin_adjustment') NOT NULL COMMENT '行为类型',
     related_task_id BIGINT UNSIGNED NULL COMMENT '关联解析任务ID',
+    admin_id BIGINT UNSIGNED NULL COMMENT '操作管理员ID（仅限人工调整）',
     remark TEXT COMMENT '备注说明',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '时间戳',
     
@@ -86,7 +87,8 @@ CREATE TABLE IF NOT EXISTS balance_logs (
     INDEX idx_action_type (action_type),
     INDEX idx_created_at (created_at),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (related_task_id) REFERENCES parse_tasks(id) ON DELETE SET NULL
+    FOREIGN KEY (related_task_id) REFERENCES parse_tasks(id) ON DELETE SET NULL,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB COMMENT='余额变动日志表';
 
 -- 6. 平台规则映射表
