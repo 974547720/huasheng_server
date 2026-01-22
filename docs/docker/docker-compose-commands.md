@@ -479,6 +479,25 @@ docker-compose exec app env | grep -E "DB_|REDIS_"
 docker-compose exec app node -e "require('./src/config/db.js').query('SELECT 1').then(r => console.log('DB OK:', r)).catch(e => console.error('DB Error:', e))"
 ```
 
+### 常见问题
+```bash
+
+### 当容器增加了新的package包的时候
+
+# 强行清理所有相关资源
+# 停止容器并删除关联的匿名卷（-v 参数）
+docker-compose down -v
+
+# 重新构建并启动
+docker-compose up -d --build
+
+# 如果不想折腾卷，可以尝试让运行中的容器自己装一下：
+docker-compose exec app npm install axios
+# 然后验证一下是否成功
+docker-compose exec app ls node_modules/axios
+```
+
+
 ### 生产环境部署准备
 ```bash
 # 1. 修改 docker-compose.yml 中的命令为生产模式

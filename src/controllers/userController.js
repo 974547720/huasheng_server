@@ -4,9 +4,10 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const sendVerificationCodeAction = require('../actions/auth/SendVerificationCodeAction');
 const verifyVerificationCodeAction = require('../actions/auth/VerifyVerificationCodeAction');
+const redis = require('../config/redis');
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '2d' });
 };
 
 /**
@@ -125,6 +126,35 @@ exports.redeemCode = async (req, res) => {
   } catch (error) {
     console.error('Redeem Code Error:', error);
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 退出登录 (将 Token 加入 Redis 黑名单)
+ */
+exports.logout = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(400).json({ success: false, message: '未检测到 Token' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = jwt.decode(token);
+
+    if (decoded && decoded.exp) {
+      // 计算 Token 剩余寿命 (秒)
+      const timeLeft = decoded.exp - Math.floor(Date.now() / 1000);
+      if (timeLeft > 0) {
+        // 存入 Redis 黑名单，有效期为 Token 剩余时长
+        await redis.set(`blacklist:${token}`, '1', 'EX', timeLeft);
+      }
+    }
+
+    res.json({ success: true, message: '已安全退出登录' });
+  } catch (error) {
+    console.error('Logout Error:', error);
+    res.status(500).json({ success: false, message: '退出失败' });
   }
 };
 

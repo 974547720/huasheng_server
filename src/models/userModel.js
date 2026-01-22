@@ -23,6 +23,18 @@ class User {
     );
   }
 
+  /**
+   * 扣除余额 (原子操作)
+   */
+  static async deductBalance(userId, amount, connection = null) {
+    const conn = connection || db;
+    const [result] = await conn.execute(
+      'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?',
+      [amount, userId, amount]
+    );
+    return result.affectedRows > 0;
+  }
+
   static async findByEmail(email) {
     const [rows] = await db.execute('SELECT * FROM users WHERE email = ?', [email]);
     // 适配数据库设计文档中的 password_hash 字段名

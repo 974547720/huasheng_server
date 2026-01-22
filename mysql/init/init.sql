@@ -54,10 +54,10 @@ CREATE TABLE IF NOT EXISTS activation_codes (
 CREATE TABLE IF NOT EXISTS parse_tasks (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT UNSIGNED NOT NULL COMMENT '发起用户ID',
-    platform_type ENUM('普通平台', '高消耗平台', '动态计费平台') NOT NULL COMMENT '平台分类',
-    parse_type ENUM('单帖提取', '主页/批量提取') NOT NULL COMMENT '解析类型',
+    platform_type ENUM('normal', 'high_consumption', 'dynamic') NOT NULL COMMENT '平台分类',
+    parse_type ENUM('single', 'batch') NOT NULL COMMENT '解析类型',
     input_url TEXT NOT NULL COMMENT '原始输入链接',
-    status ENUM('待解析', '解析中', '成功', '失败') DEFAULT '待解析' COMMENT '任务状态',
+    status ENUM('pending', 'processing', 'success', 'failed') DEFAULT 'pending' COMMENT '任务状态',
     result_count INT DEFAULT 0 COMMENT '成功提取内容数量',
     deducted_times INT DEFAULT 0 COMMENT '实际扣除解析次数',
     reason TEXT COMMENT '失败原因',
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS balance_logs (
 -- 6. 平台规则映射表
 CREATE TABLE IF NOT EXISTS platform_rules (
     platform_name VARCHAR(100) PRIMARY KEY COMMENT '平台名称',
-    category ENUM('普通平台', '高消耗平台', '动态计费平台') NOT NULL COMMENT '平台分类',
+    category ENUM('normal', 'high_consumption', 'dynamic') NOT NULL COMMENT '平台分类',
     single_deduction INT NOT NULL DEFAULT 1 COMMENT '单帖提取扣费次数',
     batch_deduction_fixed INT NOT NULL DEFAULT 2 COMMENT '批量提取固定扣费次数',
     batch_deduction_formula VARCHAR(255) COMMENT '批量提取动态计算公式'
@@ -100,13 +100,13 @@ CREATE TABLE IF NOT EXISTS platform_rules (
 
 -- 插入初始平台规则数据
 INSERT INTO platform_rules (platform_name, category, single_deduction, batch_deduction_fixed, batch_deduction_formula) VALUES
-('Instagram', '高消耗平台', 2, 2, 'CEIL(posts / 3)'),
-('Facebook', '高消耗平台', 2, 2, NULL),
-('Sora', '高消耗平台', 2, 2, NULL),
-('P站', '高消耗平台', 2, 2, NULL),
-('YouTube', '动态计费平台', 1, 2, 'CEIL(posts / 3)'),
-('Twitter', '动态计费平台', 1, 2, 'CEIL(posts / 3)'),
-('普通平台', '普通平台', 1, 2, NULL)
+('Instagram', 'high_consumption', 2, 2, 'CEIL(posts / 3)'),
+('Facebook', 'high_consumption', 2, 2, NULL),
+('Sora', 'high_consumption', 2, 2, NULL),
+('P站', 'high_consumption', 2, 2, NULL),
+('YouTube', 'dynamic', 1, 2, 'CEIL(posts / 3)'),
+('Twitter', 'dynamic', 1, 2, 'CEIL(posts / 3)'),
+('普通平台', 'normal', 1, 2, NULL)
 ON DUPLICATE KEY UPDATE platform_name=platform_name;
 
 -- 插入示例管理员数据
