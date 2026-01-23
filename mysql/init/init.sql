@@ -24,13 +24,36 @@ CREATE TABLE IF NOT EXISTS admins (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(100) NOT NULL UNIQUE COMMENT '登录用户名',
     password_hash TEXT NOT NULL COMMENT '密码哈希',
-    role ENUM('普通管理员', '超级管理员') NOT NULL DEFAULT '普通管理员' COMMENT '权限等级',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    email VARCHAR(255) NULL UNIQUE COMMENT '管理员邮箱',
+    phone VARCHAR(20) NULL UNIQUE COMMENT '管理员手机号',
+    role ENUM('super_admin', 'admin') NOT NULL DEFAULT 'admin' COMMENT '权限: super_admin超级管理员, admin普通管理员',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 0禁用/冻结, 1正常',
     last_login_at DATETIME NULL COMMENT '上次登录时间',
+    last_login_ip VARCHAR(45) NULL COMMENT '上次登录IP',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     
     INDEX idx_username (username),
-    INDEX idx_role (role)
+    INDEX idx_role (role),
+    INDEX idx_status (status)
 ) ENGINE=InnoDB COMMENT='后台管理员表';
+
+-- 7. 管理员操作日志表
+CREATE TABLE IF NOT EXISTS admin_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    admin_id BIGINT UNSIGNED NOT NULL COMMENT '操作管理员ID',
+    action VARCHAR(100) NOT NULL COMMENT '操作动作 (如: generate_code, adjust_balance)',
+    target_type VARCHAR(50) NULL COMMENT '操作目标类型 (如: user, activation_code)',
+    target_id VARCHAR(100) NULL COMMENT '操作目标标识 (ID或Code)',
+    details TEXT NULL COMMENT '详细参数或变动内容',
+    ip VARCHAR(45) NULL COMMENT '操作IP',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    
+    INDEX idx_admin_id (admin_id),
+    INDEX idx_action (action),
+    INDEX idx_created_at (created_at),
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='管理员操作日志表';
 
 -- 3. 激活码表
 CREATE TABLE IF NOT EXISTS activation_codes (
@@ -112,11 +135,11 @@ INSERT INTO platform_rules (platform_name, category, single_deduction, batch_ded
 ON DUPLICATE KEY UPDATE platform_name=platform_name;
 
 -- 插入示例管理员数据
-INSERT INTO admins (username, password_hash, role) VALUES
-('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '超级管理员'),
-('operator', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '普通管理员'),
-('auditor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '普通管理员'),
-('developer', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', '超级管理员')
+INSERT INTO admins (username, password_hash, role, status) VALUES
+('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', 1),
+('operator', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 1),
+('auditor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 1),
+('developer', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', 1)
 ON DUPLICATE KEY UPDATE username=username;
 
 -- 插入示例用户数据

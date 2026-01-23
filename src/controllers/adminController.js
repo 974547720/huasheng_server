@@ -1,10 +1,184 @@
+const Admin = require('../models/adminModel');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 
-/**
- * 后台管理控制器
- */
+const generateAdminToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1d' }); // 管理员 Token 有效期 1 天
+};
 
-// 1. 获取解析任务记录列表
+/**
+ * 管理员登录
+ */
+exports.login = async (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: '请输入用户名和密码' });
+    }
+
+    try {
+        const admin = await Admin.findByUsername(username);
+        if (!admin) {
+            return res.status(401).json({ success: false, message: '账号或密码错误' });
+        }
+
+        if (admin.status !== 1) {
+            return res.status(403).json({ success: false, message: '账号已被冻结' });
+        }
+
+        const isMatch = await bcrypt.compare(password, admin.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: '账号或密码错误' });
+        }
+
+        // 更新登录信息
+        await Admin.update(admin.id, { 
+            last_login_at: new Date(), 
+            last_login_ip: req.ip 
+        });
+
+        const token = generateAdminToken(admin.id);
+
+        res.json({
+            success: true,
+            message: '登录成功',
+            data: {
+                id: admin.id,
+                username: admin.username,
+                role: admin.role,
+                token
+            }
+        });
+    } catch (error) {
+        console.error('Admin Login Error:', error);
+        res.status(500).json({ success: false, message: '服务器错误' });
+    }
+};
+
+/**
+ * 管理员列表 (超级管理员)
+ */
+exports.listAdmins = async (req, res) => {
+    try {
+        const list = await Admin.findAll();
+        res.json({ success: true, data: list });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '获取列表失败' });
+    }
+};
+
+/**
+ * 新增管理员 (超级管理员)
+ */
+exports.createAdmin = async (req, res) => {
+    const { username, password, email, phone, role } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ success: false, message: '用户名和密码必填' });
+    }
+
+    try {
+        const salt = await bcrypt.genSalt(10);
+        const passwordHash = await bcrypt.hash(password, salt);
+
+        const adminId = await Admin.create({
+            username,
+            passwordHash,
+            email,
+            phone,
+            role: role || 'admin'
+        });
+
+        // 记录操作日志
+        await Admin.logAction(req.admin.id, 'create_admin', 'admin', adminId, { username, role }, req.ip);
+
+        res.status(201).json({ success: true, message: '管理员创建成功', id: adminId });
+    } catch (error) {
+        console.error('Create Admin Error:', error);
+        res.status(400).json({ success: false, message: '创建失败，用户名可能已存在' });
+    }
+};
+
+/**
+ * 修改管理员 (超级管理员)
+ */
+exports.updateAdmin = async (req, res) => {
+    const { id } = req.params;
+    const { password, email, phone, role, status } = req.body;
+
+    try {
+        const updateData = {};
+        if (password) {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password_hash = await bcrypt.hash(password, salt);
+        }
+        if (email !== undefined) updateData.email = email;
+        if (phone !== undefined) updateData.phone = phone;
+        if (role) updateData.role = role;
+        if (status !== undefined) updateData.status = status;
+
+        await Admin.update(id, updateData);
+
+        // 记录操作日志
+        await Admin.logAction(req.admin.id, 'update_admin', 'admin', id, updateData, req.ip);
+
+        res.json({ success: true, message: '管理员信息已更新' });
+    } catch (error) {
+        res.status(400).json({ success: false, message: '更新失败' });
+    }
+};
+
+/**
+ * 删除管理员 (超级管理员)
+ */
+exports.deleteAdmin = async (req, res) => {
+    const { id } = req.params;
+
+    if (Number(id) === req.admin.id) {
+        return res.status(400).json({ success: false, message: '不能删除自己' });
+    }
+
+    try {
+        await Admin.delete(id);
+        await Admin.logAction(req.admin.id, 'delete_admin', 'admin', id, null, req.ip);
+        res.json({ success: true, message: '管理员已删除' });
+    } catch (error) {
+        res.status(400).json({ success: false, message: '删除失败' });
+    }
+};
+
+/**
+ * 获取操作日志
+ */
+exports.getAdminLogs = async (req, res) => {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    try {
+        const [rows] = await db.execute(
+            `SELECT al.*, a.username as admin_name 
+             FROM admin_logs al 
+             LEFT JOIN admins a ON al.admin_id = a.id 
+             ORDER BY al.created_at DESC 
+             LIMIT ? OFFSET ?`,
+            [String(limit), String(offset)]
+        );
+        const [[{ total }]] = await db.execute(`SELECT COUNT(*) as total FROM admin_logs`);
+
+        res.json({ 
+            success: true, 
+            data: rows,
+            pagination: { total, page: Number(page), limit: Number(limit) }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '获取日志失败' });
+    }
+};
+
+/**
+ * 获取解析任务记录列表
+ */
 exports.getParseTasks = async (req, res) => {
     const { page = 1, limit = 20, status, platform } = req.query;
     const offset = (page - 1) * limit;
@@ -22,21 +196,8 @@ exports.getParseTasks = async (req, res) => {
             params.push(platform);
         }
 
-        // 关联用户表查询名称和邮箱
         const sql = `
-            SELECT 
-                pt.id, 
-                pt.platform_type, 
-                pt.parse_type, 
-                pt.input_url, 
-                pt.status, 
-                pt.result_count, 
-                pt.deducted_times as cost, 
-                pt.reason,
-                pt.created_at, 
-                pt.finished_at,
-                u.username as user_name,
-                u.email as user_email
+            SELECT pt.*, u.username as user_name, u.email as user_email
             FROM parse_tasks pt
             LEFT JOIN users u ON pt.user_id = u.id
             ${whereClause}
@@ -53,12 +214,13 @@ exports.getParseTasks = async (req, res) => {
             pagination: { total, page: Number(page), limit: Number(limit) }
         });
     } catch (error) {
-        console.error('Get Parse Tasks Error:', error);
         res.status(500).json({ success: false, message: '获取解析记录失败' });
     }
 };
 
-// 2. 获取余额流水记录列表
+/**
+ * 获取余额流水记录
+ */
 exports.getBalanceLogs = async (req, res) => {
     const { page = 1, limit = 20, type } = req.query;
     const offset = (page - 1) * limit;
@@ -72,24 +234,8 @@ exports.getBalanceLogs = async (req, res) => {
             params.push(type);
         }
 
-        // 关联查询：用户信息、操作人(管理员)、以及提取激活码
         const sql = `
-            SELECT 
-                bl.id, 
-                bl.created_at as time, 
-                bl.change_amount, 
-                bl.before_balance, 
-                bl.after_balance, 
-                bl.action_type, 
-                bl.remark,
-                u.username as user_name,
-                u.email as user_email,
-                adm.username as operator_name,
-                -- 尝试从备注中解析激活码（假设格式为：激活码兑换: XXX）
-                CASE 
-                    WHEN bl.remark LIKE '激活码兑换:%' THEN SUBSTRING_INDEX(bl.remark, ': ', -1)
-                    ELSE NULL 
-                END as related_code
+            SELECT bl.*, u.username as user_name, u.email as user_email, adm.username as operator_name
             FROM balance_logs bl
             LEFT JOIN users u ON bl.user_id = u.id
             LEFT JOIN admins adm ON bl.admin_id = adm.id
@@ -107,7 +253,6 @@ exports.getBalanceLogs = async (req, res) => {
             pagination: { total, page: Number(page), limit: Number(limit) }
         });
     } catch (error) {
-        console.error('Get Balance Logs Error:', error);
         res.status(500).json({ success: false, message: '获取余额流水失败' });
     }
 };
@@ -116,47 +261,28 @@ exports.getBalanceLogs = async (req, res) => {
  * 人工调整用户余额
  */
 exports.adjustUserBalance = async (req, res) => {
-    const { userId, adminId, type, amount, remark } = req.body;
+    const { userId, type, amount, remark } = req.body;
+    const adminId = req.admin.id;
 
-    // 1. 参数校验
-    if (!userId || !adminId || !type || !amount || !remark) {
-        return res.status(400).json({ success: false, message: '参数缺失（需提供用户ID、管理员ID、类型、数量、备注）' });
-    }
-
-    if (amount <= 0) {
-        return res.status(400).json({ success: false, message: '调整数量必须大于 0' });
+    if (!userId || !type || !amount || !remark) {
+        return res.status(400).json({ success: false, message: '参数缺失' });
     }
 
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
     try {
-        // 2. 锁行查询用户当前余额
         const [users] = await connection.execute('SELECT balance FROM users WHERE id = ? FOR UPDATE', [userId]);
         if (!users[0]) throw new Error('用户不存在');
 
         const beforeBalance = users[0].balance;
         let changeAmount = Number(amount);
-        
-        // 根据类型确定加减
-        if (type === '扣除') {
-            changeAmount = -changeAmount;
-            if (beforeBalance + changeAmount < 0) {
-                throw new Error('扣除失败：用户余额不足以完成此操作');
-            }
-        } else if (type !== '增加') {
-            throw new Error('无效的调整类型，仅支持 "增加" 或 "扣除"');
-        }
+        if (type === '扣除') changeAmount = -changeAmount;
 
         const afterBalance = beforeBalance + changeAmount;
+        if (afterBalance < 0) throw new Error('余额不足');
 
-        // 3. 更新用户余额
-        await connection.execute(
-            'UPDATE users SET balance = ? WHERE id = ?',
-            [afterBalance, userId]
-        );
-
-        // 4. 记录流水日志
+        await connection.execute('UPDATE users SET balance = ? WHERE id = ?', [afterBalance, userId]);
         await connection.execute(
             'INSERT INTO balance_logs (user_id, admin_id, change_amount, before_balance, after_balance, action_type, remark) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [userId, adminId, changeAmount, beforeBalance, afterBalance, 'admin_adjustment', remark]
@@ -164,22 +290,14 @@ exports.adjustUserBalance = async (req, res) => {
 
         await connection.commit();
 
-        res.json({
-            success: true,
-            message: '余额调整成功',
-            data: {
-                userId,
-                beforeBalance,
-                afterBalance,
-                changeAmount
-            }
-        });
+        // 审计日志
+        await Admin.logAction(adminId, 'adjust_balance', 'user', userId, { type, amount, remark }, req.ip);
+
+        res.json({ success: true, message: '调整成功' });
     } catch (error) {
         await connection.rollback();
-        console.error('Adjust Balance Error:', error);
         res.status(400).json({ success: false, message: error.message });
     } finally {
         connection.release();
     }
 };
-
