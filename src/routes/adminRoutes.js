@@ -12,6 +12,9 @@ router.post('/login', adminController.login);
 // --- 以下所有接口均需要管理员登录认证 ---
 router.use(adminAuth);
 
+// 获取当前登录管理员信息
+router.get('/info', adminController.getInfo);
+
 /**
  * 激活码管理
  */

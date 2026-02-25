@@ -8,6 +8,32 @@ const generateAdminToken = (id) => {
 };
 
 /**
+ * 获取当前管理员信息
+ */
+exports.getInfo = async (req, res) => {
+    try {
+        const admin = req.admin;
+
+        res.json({
+            success: true,
+            data: {
+                id: admin.id,
+                username: admin.username,
+                nickname: admin.username,
+                avatar: null,
+                email: admin.email || null,
+                phone: admin.phone || null,
+                role: admin.role,
+                status: admin.status,
+                created_at: admin.created_at
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '获取管理员信息失败' });
+    }
+};
+
+/**
  * 管理员登录
  */
 exports.login = async (req, res) => {
